@@ -41,11 +41,11 @@ Las subnets /28 dan 14 hosts usables por departamento, suficiente para una ofici
 
 | VLAN | Equipos |
 |------|---------|
-| 10 — Administración | PCA1, PCA2, PCA3, PCA3, LaptopA5, LaptopA6, PrinterpA7 |
+| 10 — Administración | PCA1, PCA2, PCA3, PCA4, LaptopA5, LaptopA6, PrinterpA7 |
 | 20 — Ventas | PCV1, PCV2, PCV3, PCV4, PCV5, PCV6, PCV7, PCV8 |
 | 30 — Tecnología | LaptopT1, LaptopT2, LaptopT3, ServersT4 |
 | 40 — Recepción | PCR1 (conectado a través del teléfono IP) |
-| 50 — Invitados | LaptopI2, LaptopI3, Laptop7I4 (Wi-Fi) PCI1 (Switch) |
+| 50 — Invitados | LaptopI2, LaptopI3, LaptopI4 (Wi-Fi) PCI1 (Switch) |
 | 100 — VoIP | IP RT1, IP RT2 |
 
 ---
@@ -154,7 +154,11 @@ vlan 100
 
 interface GigabitEthernet0/1
  switchport mode trunk
- switchport trunk allowed vlan all
+ switchport trunk allowed vlan 10,20,30,40,50,100
+
+interface GigabitEthernet0/2
+ switchport mode trunk
+ switchport trunk allowed vlan 50
 ```
 
 ### Switch central — Puertos de acceso
@@ -168,11 +172,31 @@ interface range FastEthernet0/8 - 15
  switchport mode access
  switchport access vlan 20
 
+interface range FastEthernet0/16 - 19
+ switchport mode access
+ switchport access vlan 30
+
 ! Puerto con teléfono IP (voz + datos)
 interface range FastEthernet0/20 - 21
  switchport mode access
  switchport access vlan 40
  switchport voice vlan 100
+
+```
+
+### Switch de acceso — Puertos de acceso
+
+```
+vlan 50
+ name Invitados
+
+interface GigabitEthernet0/1
+switchport mode trunk
+switchport trunk allowed vlan 50
+
+interface range FastEthernet0/1 - 2
+ switchport mode access
+ switchport access vlan 50
 
 ```
 
@@ -198,10 +222,10 @@ interface FastEthernet0/0.50
 ```
 ip access-list extended VENTAS_NO_ADMINISTRACION
  deny ip 192.168.20.0 0.0.0.15 192.168.10.0 0.0.0.15
- permit ip any any
+ permit ip 192.168.20.0 0.0.0.15 any
 
 interface FastEthernet0/0.20
- ip access-group VENTAS_RESTRICT in
+ ip access-group VENTAS_NO_ADMINISTRACION in
 ```
 
 ---
@@ -214,6 +238,45 @@ interface FastEthernet0/0.20
 | Invitados a internet | VLAN 50 | Internet | Permitido |
 | Ventas sin acceso a Admin | VLAN 20 | VLAN 10 | Bloqueado |
 | Tecnología accede a todo | VLAN 30 | Todas | Permitido |
+
+---
+
+## Pruebas y validación
+
+Se realizaron pruebas para verificar el correcto funcionamiento de la red y el cumplimiento de las políticas de seguridad.
+
+### Conectividad general
+
+- Ping entre dispositivos de la misma VLAN: exitoso  
+- Ping entre VLANs permitidas: exitoso 
+- Ping entre VLANs restringidas: bloqueado según ACL  
+
+### DHCP
+
+- Todos los dispositivos reciben IP automáticamente  
+- Asignación correcta de gateway por VLAN 
+
+### ACLs
+
+- VLAN 50 (Invitados):
+  - Acceso a redes internas: bloqueado  
+  - Acceso a internet: permitido  
+
+- VLAN 20 (Ventas):
+  - Acceso a VLAN 10 (Administración): bloqueado  
+  - Acceso a otras redes según política: permitido  
+
+### VoIP
+
+- Teléfonos IP registrados correctamente en VLAN 100 
+- Comunicación entre extensiones simuladas   
+
+### Verificación en switches y router
+
+- `show vlan brief` VLANs creadas correctamente  
+- `show interfaces trunk` enlaces trunk activos  
+- `show ip dhcp binding` asignaciones correctas  
+- `show access-lists` ACLs aplicadas correctamente  
 
 ---
 
